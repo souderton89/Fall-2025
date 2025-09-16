@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DNS Enumeration — SEC335 Week 3</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;max-width:900px;margin:36px auto;padding:0 18px;color:#111}
+    h1{font-size:1.6rem}
+    pre{background:#111;color:#dcdcdc;padding:12px;border-radius:6px;overflow:auto}
+    a{color:#0b63d6}
+    .box{border-left:4px solid #0b63d6;padding:12px;margin:14px 0;background:#f7f9fc}
+    ul{margin:6px 0 16px 24px}
+  </style>
+</head>
+<body>
+  <h1>DNS Enumeration — SEC335 (Week 3)</h1>
+  <p>Summary: this page lists the scripts and interactive commands used to perform DNS enumeration in the lab (reverse sweeps, nmap discovery, zone transfers, and parsing results).</p>
+
+  <section class="box">
+    <h2>Links to uploaded scripts & files</h2>
+    <ul>
+      <li><a href="./dns_resolver.sh" target="_blank">dns_resolver.sh</a> — reverse lookup /24 against a chosen DNS server (Deliverable 3)</li>
+      <li><a href="./dns-servers2.txt" target="_blank">dns-servers2.txt</a> — greppable nmap output (Deliverable 5 example)</li>
+      <li><a href="./zt.txt" target="_blank">zt.txt</a> — zone transfer raw output (Deliverable 7)</li>
+      <li><a href="./parse-zt.sh" target="_blank">parse-zt.sh</a> — helper script that formats zt.txt as hostname,IP</li>
+    </ul>
+    <p>If your repo path is different, update the links above to the correct relative path (for example <code>./scripts/dns_resolver.sh</code>).</p>
+  </section>
+
+  <section>
+    <h2>Interactive commands used</h2>
+
+    <h3>Reverse lookup script (Deliverable 3)</h3>
+    <pre># run:
+./dns_resolver.sh 10.0.5 10.0.5.22
+# output shows only PTRs found, e.g.
+mail.shire.org (10.0.5.19)
+bios.shire.org (10.0.5.21)</pre>
+
+    <h3>Nmap to find DNS servers (Deliverable 5)</h3>
+    <pre># scan TCP/53, skip discovery, save greppable output
+sudo nmap -p 53 --open -sT -Pn 10.0.5.0/24 -oG dns-servers2.txt
+
+# parse unique IPs that answered on TCP/53
+grep "/open/" dns-servers2.txt | awk '{print $2}' | sort -u</pre>
+
+    <h3>Nmap list & hostname output (Deliverable 6)</h3>
+    <pre># list targets and show hostname (if available) only
+sudo nmap -sL --dns-servers 10.0.5.22 10.0.5.0/24 \
+  | grep "Nmap scan report" \
+  | sed 's/^Nmap scan report for //'
+
+# only show lines that have a hostname (exclude bare IPs)
+sudo nmap -sL --dns-servers 10.0.5.22 10.0.5.0/24 | grep "Nmap scan report" | grep "("</pre>
+
+    <h3>Zone transfer (Deliverable 7)</h3>
+    <pre># attempt zone transfer and append results
+dig axfr @nsztm1.digi.ninja zonetransfer.me > zt.txt
+dig axfr @nsztm2.digi.ninja zonetransfer.me >> zt.txt
+
+# parse A records to hostname,ip
+cat zt.txt | grep -E "IN[[:space:]]*A" | awk '{print $1","$5}' | grep -v ";"
+    </pre>
+  </section>
+
+  <section class="box">
+    <h2>Optional: force all results to have (IP)</h2>
+    <p>If you prefer consistent output <code>hostname (IP)</code> even when there is no hostname, use this nmap+awk one-liner:</p>
+    <pre>sudo nmap -sL --dns-servers 10.0.5.22 10.0.5.0/24 \
+ | awk '/Nmap scan report/{
+     if(match($0,/for (.*) \\(([^)]+)\\)/,m)) print m[1]" ("m[2]")";
+     else if(match($0,/for ([0-9.]+)/,m)) print m[1]" ("m[1]")"
+ }'</pre>
+  </section>
+
+  <footer style="margin-top:28px;font-size:0.9rem;color:#444">
+    <strong>Notes:</strong> replace the example DNS server IP (10.0.5.22) with the DNS server you used in your lab. Make sure your scripts have executable permission (<code>chmod +x dns_resolver.sh</code>).
+  </footer>
+</body>
+</html>
+
